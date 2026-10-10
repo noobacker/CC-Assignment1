@@ -1,0 +1,37 @@
+<!-- Adapted from aditya491929/cloud-hw1-starter, commit a44d9dff181103004388d63faad8410bf9a779c2. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A dining concierge for Manhattan restaurant suggestions.">
+  <title>Dining Concierge</title>
+  <link href="./assets/css/bootstrap.min.css" rel="stylesheet">
+  <link href="./assets/css/concierge.css" rel="stylesheet">
+</head>
+<body>
+  <main class="site-wrapper">
+    <div class="cover-container">
+      <header class="masthead"><span class="eyebrow">MANHATTAN · DINING CONCIERGE</span>
+        <h1>A good meal starts here.</h1>
+        <p>Tell me what you’re craving. I’ll email you a few places to try.</p>
+      </header>
+      <section class="chat" aria-label="Dining concierge chat">
+        <div class="chat-heading"><span class="status-dot"></span> Your personal concierge
+          <button id="new-chat" type="button">Start over</button></div>
+        <div class="messages"><div class="messages-content" role="log" aria-live="polite" aria-relevant="additions"></div></div>
+        <form class="message-box" id="chat-form">
+          <label for="message" class="sr-only">Message</label>
+          <textarea id="message" class="message-input" rows="1" maxlength="1024" placeholder="Type a message…" required></textarea>
+          <button class="message-submit" type="submit">Send <span aria-hidden="true">↗</span></button>
+        </form>
+        <p id="connection-status" role="status"></p>
+      </section>
+      <footer>Chinese · Japanese · Italian · Mexican · Indian · Thai · French · American<br>
+        Suggestions arrive by email. All dining times are in New York time.</footer>
+    </div>
+  </main>
+  <script src="./config.js"></script>
+  <script src="./assets/js/chat.js"></script>
+</body>
+</html>

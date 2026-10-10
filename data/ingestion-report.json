@@ -1,0 +1,14 @@
+{
+  "uniqueRestaurants": 1788,
+  "byCuisine": {
+    "american": 229,
+    "chinese": 226,
+    "french": 222,
+    "indian": 221,
+    "italian": 226,
+    "japanese": 228,
+    "mexican": 228,
+    "thai": 223
+  },
+  "meetsRequirement": true
+}

@@ -1,0 +1,31 @@
+{
+  "website": "HTTP 200",
+  "cors": "HTTP 200, Access-Control-Allow-Origin: *",
+  "transcript": [
+    {
+      "user": "hello",
+      "bot": "Hi there, how can I help? I can suggest restaurants in Manhattan."
+    },
+    {
+      "user": "thank you",
+      "bot": "You're welcome. Enjoy your meal!"
+    },
+    {
+      "user": "I need restaurant suggestions",
+      "bot": "What city or city area would you like to dine in? I serve Manhattan."
+    },
+    {
+      "user": "New Delhi",
+      "bot": "What city or city area would you like to dine in? I serve Manhattan."
+    },
+    {
+      "user": "Manhattan",
+      "bot": "What cuisine would you like? Chinese, Japanese, Italian, Mexican, Indian, Thai, French, or American?"
+    },
+    {
+      "user": "Japanese",
+      "bot": "How many people are in your party (1 to 20)?"
+    }
+  ],
+  "fullVerification": "Pending Yelp ingestion, search and SES verification"
+}

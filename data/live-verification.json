@@ -1,0 +1,87 @@
+{
+  "uniqueRestaurants": 1788,
+  "byCuisine": {
+    "american": 229,
+    "chinese": 226,
+    "french": 222,
+    "indian": 221,
+    "italian": 226,
+    "japanese": 228,
+    "mexican": 228,
+    "thai": 223
+  },
+  "meetsRequirement": true,
+  "openSearchCount": 1788,
+  "website": "PASS",
+  "apiCors": "PASS",
+  "greetingAndThanks": "PASS",
+  "oneMinuteSchedule": "PASS",
+  "email": "SES accepted both sends; confirm receipt in inbox",
+  "extraCreditRepeat": "PASS",
+  "transcript": [
+    {
+      "user": "I need restaurant suggestions",
+      "bot": "What city or city area would you like to dine in? I serve Manhattan."
+    },
+    {
+      "user": "New Delhi",
+      "bot": "What city or city area would you like to dine in? I serve Manhattan."
+    },
+    {
+      "user": "Manhattan",
+      "bot": "What cuisine would you like? Chinese, Japanese, Italian, Mexican, Indian, Thai, French, or American?"
+    },
+    {
+      "user": "Japanese",
+      "bot": "How many people are in your party (1 to 20)?"
+    },
+    {
+      "user": "2",
+      "bot": "What date would you like to dine?"
+    },
+    {
+      "user": "2026-10-10",
+      "bot": "What time would you like to dine (New York time)?"
+    },
+    {
+      "user": "19:00",
+      "bot": "What email address should receive your restaurant suggestions?"
+    },
+    {
+      "user": "[recipient email]",
+      "bot": "You're all set. I received your request and will email your restaurant suggestions shortly. Have a good day!"
+    },
+    {
+      "user": "I need restaurant suggestions",
+      "bot": "What city or city area would you like to dine in? I serve Manhattan."
+    },
+    {
+      "user": "Manhattan",
+      "bot": "What cuisine would you like? Chinese, Japanese, Italian, Mexican, Indian, Thai, French, or American?"
+    },
+    {
+      "user": "Japanese",
+      "bot": "You previously searched for this location and cuisine. Would you like the same recommendations as last time? Say yes or no."
+    },
+    {
+      "user": "yes",
+      "bot": "How many people are in your party (1 to 20)?"
+    },
+    {
+      "user": "2",
+      "bot": "What date would you like to dine?"
+    },
+    {
+      "user": "2026-10-10",
+      "bot": "What time would you like to dine (New York time)?"
+    },
+    {
+      "user": "19:00",
+      "bot": "What email address should receive your restaurant suggestions?"
+    },
+    {
+      "user": "[recipient email]",
+      "bot": "You're all set. I received your request and will email your restaurant suggestions shortly. Have a good day!"
+    }
+  ]
+}

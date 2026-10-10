@@ -1,0 +1,11 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+.build/
+tmp/
+data/*.json
+data/*.jsonl
+!data/.gitkeep
+deployment.json
+frontend/config.js

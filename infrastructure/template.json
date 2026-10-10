@@ -1,0 +1,1368 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Dining Concierge - CC Fall 2026 Assignment 1",
+  "Conditions": {
+    "SearchEnabled": {
+      "Fn::Equals": [
+        {
+          "Ref": "ProvisionSearch"
+        },
+        "true"
+      ]
+    }
+  },
+  "Parameters": {
+    "ProvisionSearch": {
+      "Type": "String",
+      "Default": "true",
+      "AllowedValues": [
+        "true",
+        "false"
+      ]
+    },
+    "ArtifactBucket": {
+      "Type": "String"
+    },
+    "CodeKey": {
+      "Type": "String"
+    },
+    "SenderEmail": {
+      "Type": "String"
+    },
+    "DeployerArn": {
+      "Type": "String"
+    },
+    "SearchDomainName": {
+      "Type": "String",
+      "Default": "dining-concierge",
+      "MaxLength": 28
+    },
+    "SearchEngineVersion": {
+      "Type": "String",
+      "Default": "Elasticsearch_7.10",
+      "AllowedValues": [
+        "Elasticsearch_7.10",
+        "OpenSearch_2.19"
+      ]
+    }
+  },
+  "Resources": {
+    "Website": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "WebsiteConfiguration": {
+          "IndexDocument": "index.html",
+          "ErrorDocument": "index.html"
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": false,
+          "RestrictPublicBuckets": false
+        }
+      }
+    },
+    "WebsitePolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "Website"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "s3:GetObject",
+              "Resource": {
+                "Fn::Sub": "${Website.Arn}/*"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Restaurants": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "yelp-restaurants",
+        "BillingMode": "PAY_PER_REQUEST",
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "BusinessID",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "BusinessID",
+            "KeyType": "HASH"
+          }
+        ]
+      }
+    },
+    "State": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "BillingMode": "PAY_PER_REQUEST",
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "pk",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "pk",
+            "KeyType": "HASH"
+          }
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true
+        }
+      }
+    },
+    "DeadLetterQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "FifoQueue": true,
+        "MessageRetentionPeriod": 1209600,
+        "SqsManagedSseEnabled": true
+      }
+    },
+    "Q1": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "FifoQueue": true,
+        "VisibilityTimeout": 180,
+        "SqsManagedSseEnabled": true,
+        "MessageRetentionPeriod": 345600,
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "DeadLetterQueue",
+              "Arn"
+            ]
+          },
+          "maxReceiveCount": 5
+        }
+      }
+    },
+    "LF0Role": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ApplicationAccess",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-*:*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "lex:RecognizeText",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:lex:${AWS::Region}:${AWS::AccountId}:bot-alias/*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "LF1Role": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ApplicationAccess",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-*:*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "sqs:SendMessage",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Q1",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "LF2Role": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ApplicationAccess",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-*:*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Q1",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Restaurants",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "es:ESHttpPost",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/${SearchDomainName}/*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "ses:SendEmail",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SenderEmail}"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "LexRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lexv2.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      }
+    },
+    "Search": {
+      "Type": "AWS::OpenSearchService::Domain",
+      "Properties": {
+        "DomainName": {
+          "Ref": "SearchDomainName"
+        },
+        "EngineVersion": {
+          "Ref": "SearchEngineVersion"
+        },
+        "ClusterConfig": {
+          "InstanceType": "t3.small.search",
+          "InstanceCount": 1,
+          "ZoneAwarenessEnabled": false
+        },
+        "EBSOptions": {
+          "EBSEnabled": true,
+          "VolumeType": "gp3",
+          "VolumeSize": 10
+        },
+        "EncryptionAtRestOptions": {
+          "Enabled": true
+        },
+        "NodeToNodeEncryptionOptions": {
+          "Enabled": true
+        },
+        "DomainEndpointOptions": {
+          "EnforceHTTPS": true,
+          "TLSSecurityPolicy": "Policy-Min-TLS-1-2-2019-07"
+        },
+        "AccessPolicies": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": [
+                  {
+                    "Fn::GetAtt": [
+                      "LF2Role",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Ref": "DeployerArn"
+                  }
+                ]
+              },
+              "Action": "es:ESHttp*",
+              "Resource": {
+                "Fn::Sub": "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/${SearchDomainName}/*"
+              }
+            }
+          ]
+        }
+      },
+      "Condition": "SearchEnabled"
+    },
+    "LF0Log": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}-LF0"
+        },
+        "RetentionInDays": 14
+      }
+    },
+    "LF0": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-LF0"
+        },
+        "Runtime": "python3.12",
+        "Handler": "lf0.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LF0Role",
+            "Arn"
+          ]
+        },
+        "Timeout": 25,
+        "MemorySize": 256,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ArtifactBucket"
+          },
+          "S3Key": {
+            "Ref": "CodeKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "LEX_BOT_ID": {
+              "Ref": "Bot"
+            },
+            "LEX_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "BotAlias",
+                "BotAliasId"
+              ]
+            },
+            "ALLOWED_ORIGIN": {
+              "Fn::GetAtt": [
+                "Website",
+                "WebsiteURL"
+              ]
+            },
+            "BOILERPLATE_MODE": "false"
+          }
+        }
+      },
+      "DependsOn": [
+        "LF0Log"
+      ]
+    },
+    "LF1Log": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}-LF1"
+        },
+        "RetentionInDays": 14
+      }
+    },
+    "LF1": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-LF1"
+        },
+        "Runtime": "python3.12",
+        "Handler": "lf1.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LF1Role",
+            "Arn"
+          ]
+        },
+        "Timeout": 25,
+        "MemorySize": 256,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ArtifactBucket"
+          },
+          "S3Key": {
+            "Ref": "CodeKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "QUEUE_URL": {
+              "Ref": "Q1"
+            },
+            "STATE_TABLE": {
+              "Ref": "State"
+            }
+          }
+        }
+      },
+      "DependsOn": [
+        "LF1Log"
+      ]
+    },
+    "LF2Log": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}-LF2"
+        },
+        "RetentionInDays": 14
+      }
+    },
+    "LF2": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-LF2"
+        },
+        "Runtime": "python3.12",
+        "Handler": "lf2.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LF2Role",
+            "Arn"
+          ]
+        },
+        "Timeout": 120,
+        "MemorySize": 256,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ArtifactBucket"
+          },
+          "S3Key": {
+            "Ref": "CodeKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "QUEUE_URL": {
+              "Ref": "Q1"
+            },
+            "STATE_TABLE": {
+              "Ref": "State"
+            },
+            "WORKER_LOCK_ENABLED": "true",
+            "RESTAURANTS_TABLE": {
+              "Ref": "Restaurants"
+            },
+            "OPENSEARCH_ENDPOINT": {
+              "Fn::If": [
+                "SearchEnabled",
+                {
+                  "Fn::GetAtt": [
+                    "Search",
+                    "DomainEndpoint"
+                  ]
+                },
+                ""
+              ]
+            },
+            "SES_SENDER_EMAIL": {
+              "Ref": "SenderEmail"
+            }
+          }
+        }
+      },
+      "DependsOn": [
+        "LF2Log"
+      ]
+    },
+    "Bot": {
+      "Type": "AWS::Lex::Bot",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-DiningConcierge"
+        },
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "LexRole",
+            "Arn"
+          ]
+        },
+        "DataPrivacy": {
+          "ChildDirected": false
+        },
+        "IdleSessionTTLInSeconds": 900,
+        "AutoBuildBotLocales": true,
+        "BotLocales": [
+          {
+            "LocaleId": "en_US",
+            "NluConfidenceThreshold": 0.4,
+            "SlotTypes": [
+              {
+                "Name": "CuisineType",
+                "SlotTypeValues": [
+                  {
+                    "SampleValue": {
+                      "Value": "chinese"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "japanese"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "italian"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "mexican"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "indian"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "thai"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "french"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "american"
+                    }
+                  }
+                ],
+                "ValueSelectionSetting": {
+                  "ResolutionStrategy": "TOP_RESOLUTION"
+                }
+              },
+              {
+                "Name": "ReuseType",
+                "SlotTypeValues": [
+                  {
+                    "SampleValue": {
+                      "Value": "yes"
+                    }
+                  },
+                  {
+                    "SampleValue": {
+                      "Value": "no"
+                    }
+                  }
+                ],
+                "ValueSelectionSetting": {
+                  "ResolutionStrategy": "TOP_RESOLUTION"
+                }
+              }
+            ],
+            "Intents": [
+              {
+                "Name": "GreetingIntent",
+                "SampleUtterances": [
+                  {
+                    "Utterance": "hello"
+                  },
+                  {
+                    "Utterance": "hi"
+                  },
+                  {
+                    "Utterance": "hey"
+                  },
+                  {
+                    "Utterance": "good morning"
+                  }
+                ],
+                "DialogCodeHook": {
+                  "Enabled": true
+                },
+                "FulfillmentCodeHook": {
+                  "Enabled": true,
+                  "IsActive": true
+                }
+              },
+              {
+                "Name": "ThankYouIntent",
+                "SampleUtterances": [
+                  {
+                    "Utterance": "thanks"
+                  },
+                  {
+                    "Utterance": "thank you"
+                  },
+                  {
+                    "Utterance": "thank you very much"
+                  }
+                ],
+                "DialogCodeHook": {
+                  "Enabled": true
+                },
+                "FulfillmentCodeHook": {
+                  "Enabled": true,
+                  "IsActive": true
+                }
+              },
+              {
+                "Name": "DiningSuggestionsIntent",
+                "SampleUtterances": [
+                  {
+                    "Utterance": "I need restaurant suggestions"
+                  },
+                  {
+                    "Utterance": "recommend a restaurant"
+                  },
+                  {
+                    "Utterance": "I want to eat"
+                  },
+                  {
+                    "Utterance": "find me a restaurant"
+                  },
+                  {
+                    "Utterance": "I am hungry"
+                  },
+                  {
+                    "Utterance": "I want {Cuisine} food"
+                  },
+                  {
+                    "Utterance": "I want {Cuisine} food in {Location}"
+                  },
+                  {
+                    "Utterance": "restaurant suggestions"
+                  }
+                ],
+                "DialogCodeHook": {
+                  "Enabled": true
+                },
+                "FulfillmentCodeHook": {
+                  "Enabled": true,
+                  "IsActive": true
+                },
+                "Slots": [
+                  {
+                    "Name": "Location",
+                    "SlotTypeName": "AMAZON.City",
+                    "ValueElicitationSetting": {
+                      "SlotConstraint": "Required",
+                      "PromptSpecification": {
+                        "MaxRetries": 3,
+                        "MessageGroupsList": [
+                          {
+                            "Message": {
+                              "PlainTextMessage": {
+                                "Value": "What city or city area would you like to dine in? I serve Manhattan."
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "Name": "Cuisine",
+                    "SlotTypeName": "CuisineType",
+                    "ValueElicitationSetting": {
+                      "SlotConstraint": "Required",
+                      "PromptSpecification": {
+                        "MaxRetries": 3,
+                        "MessageGroupsList": [
+                          {
+                            "Message": {
+                              "PlainTextMessage": {
+                                "Value": "What cuisine would you like? Chinese, Japanese, Italian, Mexican, Indian, Thai, French, or American?"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "Name": "NumberOfPeople",
+                    "SlotTypeName": "AMAZON.Number",
+                    "ValueElicitationSetting": {
+                      "SlotConstraint": "Required",
+                      "PromptSpecification": {
+                        "MaxRetries": 3,
+                        "MessageGroupsList": [
+                          {
+                            "Message": {
+                              "PlainTextMessage": {
+                                "Value": "How many people are in your party (1 to 20)?"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "Name": "DiningDate",
+                    "SlotTypeName": "AMAZON.Date",
+                    "ValueElicitationSetting": {
+                      "SlotConstraint": "Required",
+                      "PromptSpecification": {
+                        "MaxRetries": 3,
+                        "MessageGroupsList": [
+                          {
+                            "Message": {
+                              "PlainTextMessage": {
+                                "Value": "What date would you like to dine?"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "Name": "DiningTime",
+                    "SlotTypeName": "AMAZON.Time",
+                    "ValueElicitationSetting": {
+                      "SlotConstraint": "Required",
+                      "PromptSpecification": {
+                        "MaxRetries": 3,
+                        "MessageGroupsList": [
+                          {
+                            "Message": {
+                              "PlainTextMessage": {
+                                "Value": "What time would you like to dine (New York time)?"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "Name": "Email",
+                    "SlotTypeName": "AMAZON.EmailAddress",
+                    "ValueElicitationSetting": {
+                      "SlotConstraint": "Required",
+                      "PromptSpecification": {
+                        "MaxRetries": 3,
+                        "MessageGroupsList": [
+                          {
+                            "Message": {
+                              "PlainTextMessage": {
+                                "Value": "What email address should receive your restaurant suggestions?"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "Name": "ReusePrevious",
+                    "SlotTypeName": "ReuseType",
+                    "ValueElicitationSetting": {
+                      "SlotConstraint": "Optional",
+                      "PromptSpecification": {
+                        "MaxRetries": 3,
+                        "MessageGroupsList": [
+                          {
+                            "Message": {
+                              "PlainTextMessage": {
+                                "Value": "Would you like the same recommendations? Say yes or no."
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "SlotPriorities": [
+                  {
+                    "Priority": 1,
+                    "SlotName": "Location"
+                  },
+                  {
+                    "Priority": 2,
+                    "SlotName": "Cuisine"
+                  },
+                  {
+                    "Priority": 3,
+                    "SlotName": "NumberOfPeople"
+                  },
+                  {
+                    "Priority": 4,
+                    "SlotName": "DiningDate"
+                  },
+                  {
+                    "Priority": 5,
+                    "SlotName": "DiningTime"
+                  },
+                  {
+                    "Priority": 6,
+                    "SlotName": "Email"
+                  },
+                  {
+                    "Priority": 7,
+                    "SlotName": "ReusePrevious"
+                  }
+                ]
+              },
+              {
+                "Name": "FallbackIntent",
+                "ParentIntentSignature": "AMAZON.FallbackIntent",
+                "FulfillmentCodeHook": {
+                  "Enabled": true,
+                  "IsActive": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "BotVersion": {
+      "Type": "AWS::Lex::BotVersion",
+      "Properties": {
+        "BotId": {
+          "Ref": "Bot"
+        },
+        "BotVersionLocaleSpecification": [
+          {
+            "LocaleId": "en_US",
+            "BotVersionLocaleDetails": {
+              "SourceBotVersion": "DRAFT"
+            }
+          }
+        ]
+      }
+    },
+    "BotAlias": {
+      "Type": "AWS::Lex::BotAlias",
+      "Properties": {
+        "BotId": {
+          "Ref": "Bot"
+        },
+        "BotAliasName": "production",
+        "BotVersion": {
+          "Fn::GetAtt": [
+            "BotVersion",
+            "BotVersion"
+          ]
+        },
+        "BotAliasLocaleSettings": [
+          {
+            "LocaleId": "en_US",
+            "BotAliasLocaleSetting": {
+              "Enabled": true,
+              "CodeHookSpecification": {
+                "LambdaCodeHook": {
+                  "CodeHookInterfaceVersion": "1.0",
+                  "LambdaArn": {
+                    "Fn::GetAtt": [
+                      "LF1",
+                      "Arn"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DependsOn": [
+        "LexInvoke"
+      ]
+    },
+    "LexInvoke": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "LF1"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "lexv2.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:lex:${AWS::Region}:${AWS::AccountId}:bot-alias/${Bot}/*"
+        }
+      }
+    },
+    "MinuteSchedule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "ScheduleExpression": "rate(1 minute)",
+        "State": {
+          "Fn::If": [
+            "SearchEnabled",
+            "ENABLED",
+            "DISABLED"
+          ]
+        },
+        "Targets": [
+          {
+            "Arn": {
+              "Fn::GetAtt": [
+                "LF2",
+                "Arn"
+              ]
+            },
+            "Id": "LF2"
+          }
+        ]
+      }
+    },
+    "ScheduleInvoke": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "LF2"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "MinuteSchedule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "Api": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-API"
+        },
+        "Body": {
+          "swagger": "2.0",
+          "info": {
+            "title": "AI Customer Service API",
+            "description": "AI Customer Service application, built during the Cloud and Big Data course at NYU.",
+            "version": "1.0.0"
+          },
+          "schemes": [
+            "https"
+          ],
+          "basePath": "/v1",
+          "produces": [
+            "application/json"
+          ],
+          "paths": {
+            "/chatbot": {
+              "post": {
+                "summary": "The endpoint for the Natural Language Understanding API.",
+                "description": "This API takes in one or more messages from the client and returns\none or more messages as a response. The API leverages the NLP\nbackend functionality, paired with state and profile information\nand returns a context-aware reply.\n",
+                "tags": [
+                  "NLU"
+                ],
+                "operationId": "sendMessage",
+                "produces": [
+                  "application/json"
+                ],
+                "parameters": [
+                  {
+                    "name": "body",
+                    "in": "body",
+                    "required": true,
+                    "schema": {
+                      "$ref": "#/definitions/BotRequest"
+                    }
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "A Chatbot response",
+                    "schema": {
+                      "$ref": "#/definitions/BotResponse"
+                    }
+                  },
+                  "403": {
+                    "description": "Unauthorized",
+                    "schema": {
+                      "$ref": "#/definitions/Error"
+                    }
+                  },
+                  "500": {
+                    "description": "Unexpected error",
+                    "schema": {
+                      "$ref": "#/definitions/Error"
+                    }
+                  }
+                },
+                "x-amazon-apigateway-integration": {
+                  "type": "aws_proxy",
+                  "httpMethod": "POST",
+                  "uri": {
+                    "Fn::Sub": "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LF0.Arn}/invocations"
+                  }
+                }
+              },
+              "options": {
+                "responses": {
+                  "200": {
+                    "description": "CORS",
+                    "headers": {
+                      "Access-Control-Allow-Origin": {
+                        "type": "string"
+                      },
+                      "Access-Control-Allow-Methods": {
+                        "type": "string"
+                      },
+                      "Access-Control-Allow-Headers": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "x-amazon-apigateway-integration": {
+                  "type": "mock",
+                  "requestTemplates": {
+                    "application/json": "{\"statusCode\":200}"
+                  },
+                  "responses": {
+                    "default": {
+                      "statusCode": "200",
+                      "responseParameters": {
+                        "method.response.header.Access-Control-Allow-Origin": "'*'",
+                        "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'",
+                        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Session-Id'"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "definitions": {
+            "BotRequest": {
+              "type": "object",
+              "properties": {
+                "messages": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/Message"
+                  }
+                }
+              }
+            },
+            "BotResponse": {
+              "type": "object",
+              "properties": {
+                "messages": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/Message"
+                  }
+                }
+              }
+            },
+            "Message": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "unstructured": {
+                  "$ref": "#/definitions/UnstructuredMessage"
+                }
+              }
+            },
+            "UnstructuredMessage": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "datetime"
+                }
+              }
+            },
+            "Error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "x-amazon-apigateway-gateway-responses": {
+            "DEFAULT_4XX": {
+              "responseParameters": {
+                "gatewayresponse.header.Access-Control-Allow-Origin": "'*'"
+              }
+            },
+            "DEFAULT_5XX": {
+              "responseParameters": {
+                "gatewayresponse.header.Access-Control-Allow-Origin": "'*'"
+              }
+            }
+          }
+        },
+        "EndpointConfiguration": {
+          "Types": [
+            "REGIONAL"
+          ]
+        }
+      }
+    },
+    "ApiDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        }
+      }
+    },
+    "ApiStage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "DeploymentId": {
+          "Ref": "ApiDeployment"
+        },
+        "StageName": "v1",
+        "MethodSettings": [
+          {
+            "ResourcePath": "/*",
+            "HttpMethod": "*",
+            "ThrottlingBurstLimit": 10,
+            "ThrottlingRateLimit": 5
+          }
+        ]
+      }
+    },
+    "ApiInvoke": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "LF0"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/chatbot"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "WebsiteBucket": {
+      "Value": {
+        "Ref": "Website"
+      }
+    },
+    "WebsiteUrl": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Website",
+          "WebsiteURL"
+        ]
+      }
+    },
+    "ApiUrl": {
+      "Value": {
+        "Fn::Sub": "https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1"
+      }
+    },
+    "ApiId": {
+      "Value": {
+        "Ref": "Api"
+      }
+    },
+    "BotId": {
+      "Value": {
+        "Ref": "Bot"
+      }
+    },
+    "BotAliasId": {
+      "Value": {
+        "Fn::GetAtt": [
+          "BotAlias",
+          "BotAliasId"
+        ]
+      }
+    },
+    "QueueUrl": {
+      "Value": {
+        "Ref": "Q1"
+      }
+    },
+    "DeadLetterQueueUrl": {
+      "Value": {
+        "Ref": "DeadLetterQueue"
+      }
+    },
+    "StateTable": {
+      "Value": {
+        "Ref": "State"
+      }
+    },
+    "RestaurantsTable": {
+      "Value": {
+        "Ref": "Restaurants"
+      }
+    },
+    "SearchEndpoint": {
+      "Value": {
+        "Fn::If": [
+          "SearchEnabled",
+          {
+            "Fn::GetAtt": [
+              "Search",
+              "DomainEndpoint"
+            ]
+          },
+          ""
+        ]
+      }
+    },
+    "SearchEngineVersion": {
+      "Value": {
+        "Ref": "SearchEngineVersion"
+      }
+    },
+    "LF2Name": {
+      "Value": {
+        "Ref": "LF2"
+      }
+    }
+  }
+}
